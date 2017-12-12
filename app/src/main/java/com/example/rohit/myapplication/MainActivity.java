@@ -3,11 +3,13 @@ package com.example.rohit.myapplication;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -16,74 +18,148 @@ import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.preference.PreferenceManager;
+import android.support.design.widget.Snackbar;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.CompoundButton;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.text.DateFormat;
+import java.util.Date;
+
+import de.keyboardsurfer.android.widget.crouton.Crouton;
+import de.keyboardsurfer.android.widget.crouton.Style;
 
 
 public class MainActivity extends Activity implements SensorEventListener {
     static Activity thisActivity = null;
-    SensorManager sensorManager;
-    Sensor photometer;
-    TextView textView,TV1,TV2;
+
+    SensorManager mSensorManager;
+    Sensor mPhotometer,mAccelerometer,mMagnetometer;
     SensorEvent event;
+
+    TextView currentLux, maxLux;
+    TextView accelerometerX,accelerometerY,accelerometerZ;
+    TextView rotationX,rotationY,rotationZ;
+    Switch serviceSwitch;
     AlertDialog dialog;
+
     SharedPreferences preferences;
     int max = 0;
     boolean isAppRunning = true;
+    KeyguardManager keyguardManager;
 
+    private final float[] mAccelerometerReading = new float[3];
+    private final float[] mMagnetometerReading = new float[3];
+
+    private final float[] mRotationMatrix = new float[9];
+    private final float[] mOrientationAngles = new float[3];
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         thisActivity = this;
+        findViews();
 
-        textView = (TextView)findViewById(R.id.textView1);
-        TV1 = (TextView) findViewById(R.id.tv1);
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-        sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
-        photometer = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
-        sensorManager.registerListener(this, photometer, SensorManager.SENSOR_DELAY_NORMAL);
+        String lastOpen = "Today";
+        lastOpen = preferences.getString("lastOpen",lastOpen);
+        Crouton.makeText(thisActivity, "App last open on: "+lastOpen, Style.CONFIRM).show();
+
+        keyguardManager = (KeyguardManager)getApplicationContext().getSystemService(Context.KEYGUARD_SERVICE);
+        mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+
+        mPhotometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+        mAccelerometer= mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mMagnetometer= mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+
+        mSensorManager.registerListener(this, mPhotometer, SensorManager.SENSOR_DELAY_NORMAL);
+        mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        mSensorManager.registerListener(this, mMagnetometer, SensorManager.SENSOR_DELAY_NORMAL);
 
         isConnected(thisActivity);
+
+        boolean switchOnOff = preferences.getBoolean("switch", true);
+        if (switchOnOff){
+            serviceSwitch.setChecked(true);
+            serviceSwitch.setText("ServiceRunning");
+            showSnackBar("ServiceRunning");
+
+        }
+        if (!switchOnOff){
+            serviceSwitch.setChecked(false);
+            serviceSwitch.setText("ServiceStopped");
+            showSnackBar("ServiceStopped");
+        }
+        startService();
+
+        serviceSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    serviceSwitch.setText("ServiceRunning");
+                    showSnackBar(serviceSwitch.getText().toString());
+                    startService();
+                } else {
+                    serviceSwitch.setText("ServiceStopped");
+                    showSnackBar(serviceSwitch.getText().toString());
+                    Intent serviceIntent = new Intent(MainActivity.this, BackgroundService.class);
+                    stopService( serviceIntent);
+                    BackgroundService.shouldContinue = false;
+                }
+            }
+        });
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setMessage("Using phone in darkness")
                 .setTitle("Warning");
         dialog = builder.create();
 
-        preferences = PreferenceManager.getDefaultSharedPreferences(this);
-
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         max = preferences.getInt("highest",0);
-        TV1.setText(max + "");
-
-
-        Intent serviceIntent = new Intent(MainActivity.this,BackgroundService.class);
-        startService(serviceIntent);
+        maxLux.setText(max + "");
 
         /*Intent i4=new Intent(Intent.ACTION_MAIN);
-
         PackageManager manager = getPackageManager();
-
         i4 = manager.getLaunchIntentForPackage("jp.ne.hardyinfinity.bluelightfilter.free");
+        i4.addCategory(Intent.CATEGORY_LAUNCHER);
+        startActivity(i4);*/
 
-     //   i4.addCategory(Intent.CATEGORY_LAUNCHER);
-
-        startActivity(i4);
-*/
-
-
-/*
-        Intent intent = new Intent();
+        /*Intent intent = new Intent();
         intent.setComponent(new ComponentName("jp.ne.hardyinfinity.bluelightfilter.free.service", "jp.ne.hardyinfinity.bluelightfilter.free.service.FilterService"));
         ComponentName c = getApplicationContext().startService(intent);
-        startService(intent);
-*/
+        startService(intent);*/
     }
+
+    private void startService() {
+        Intent serviceIntent = new Intent(MainActivity.this, BackgroundService.class);
+        startService(serviceIntent);
+    }
+
+    private void findViews() {
+        currentLux = (TextView)findViewById(R.id.currentLux);
+        maxLux = (TextView) findViewById(R.id.maxLux);
+        serviceSwitch = (Switch)findViewById(R.id.switch1);
+
+        accelerometerX= (TextView)findViewById(R.id.accelerometerX);
+        accelerometerY= (TextView)findViewById(R.id.accelerometerY);
+        accelerometerZ= (TextView)findViewById(R.id.accelerometerZ);
+
+        rotationX = (TextView)findViewById(R.id.rotationX);
+        rotationY = (TextView)findViewById(R.id.rotationY);
+        rotationZ = (TextView)findViewById(R.id.rotationZ);
+
+    }
+
+    private void showSnackBar(String message) {
+        Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG)
+                .setActionTextColor(Color.RED)
+                .show();
+    }
+
     private boolean isServiceRunning() {
         ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
         for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
@@ -138,50 +214,79 @@ public class MainActivity extends Activity implements SensorEventListener {
         super.onResume();
         isAppRunning = true;
 
+        mSensorManager.registerListener(this, mPhotometer, SensorManager.SENSOR_DELAY_NORMAL);
+        mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        mSensorManager.registerListener(this, mMagnetometer, SensorManager.SENSOR_DELAY_NORMAL);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+
         SharedPreferences.Editor editor = preferences.edit();
+        String currentDateTimeString = DateFormat.getDateTimeInstance().format(new Date());
         editor.putInt("highest", max);
+
+        if (serviceSwitch.isChecked())
+            editor.putBoolean("switch", true);
+        if (!serviceSwitch.isChecked())
+            editor.putBoolean("switch", false);
+
+        editor.putString("lastOpen", currentDateTimeString);
         editor.commit();
         isAppRunning = false;
-
+        mSensorManager.unregisterListener(this);
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        int intValue = (int) event.values[0];
-        textView.setTextSize(60);
-        textView.setText(intValue + "");
+        if (event.sensor==mPhotometer) {
+            int intValue = (int) event.values[0];
+            currentLux.setTextSize(40);
+            maxLux.setTextSize(40);
+            currentLux.setText(intValue + "");
             final Toast toast = Toast.makeText(thisActivity, "Please Turn on BlueLightFilter", Toast.LENGTH_SHORT);
-        if(intValue ==0 /*&& !dialog.isShowing()*/) {// using dialog not showing shows and hides the dialog as long as the first condition is true
-            if (isAppRunning) dialog.show();
-            if(!isServiceRunning()/*&&toast.getView().getWindowVisibility() != View.VISIBLE*//* && toast.getView().isShown() == false*/){
-                toast.show();
-                Handler handler = new Handler();
-                handler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    toast.cancel();
-                }
-            }, 500);
-            }
+            if (!keyguardManager.inKeyguardRestrictedInputMode())
+                if (intValue == 0 /*&& !dialog.isShowing()*/) {// using dialog not showing shows and hides the dialog as long as the first condition is true
+                    if (isAppRunning)
+                        dialog.show();
+                    if (!isServiceRunning()/*&&toast.getView().getWindowVisibility() != View.VISIBLE*//* && toast.getView().isShown() == false*/) {
+                        toast.show();
+                        Handler handler = new Handler();
+                        handler.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                toast.cancel();
+                            }
+                        }, 500);
+                    }
+                } else dialog.dismiss();
+
+            maxLux.setText(max + "");
+            max = max < intValue ? intValue : max;
         }
-        else
-        {
-            dialog.dismiss();
+            /*android.provider.Settings.System.putInt(getContentResolver(),
+                    android.provider.Settings.System.SCREEN_BRIGHTNESS, Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC);*/
+
+        if (event.sensor==mAccelerometer){
+            System.arraycopy(event.values, 0, mAccelerometerReading, 0, mAccelerometerReading.length);
+            accelerometerX.setText(String.format( "%.4f", event.values[0]) + "");
+            accelerometerY.setText(String.format( "%.4f", event.values[1]) + "");
+            accelerometerZ.setText(String.format("%.4f", event.values[2]) + "");
+        }
+        else if (event.sensor==mMagnetometer) {
+            System.arraycopy(event.values, 0, mMagnetometerReading,0,mMagnetometerReading.length);
         }
 
-        TV1.setText(max + "");
-        max = max<intValue ?intValue: max;
-        /*if (intValue < 100) {
-            android.provider.Settings.System.putInt(getContentResolver(),
-                    android.provider.Settings.System.SCREEN_BRIGHTNESS, 200);
-        }*/
-
+        boolean success =  SensorManager.getRotationMatrix(mRotationMatrix, null, mAccelerometerReading, mMagnetometerReading);
+        if (success){
+            SensorManager.getOrientation(mRotationMatrix, mOrientationAngles);
+            rotationX.setText((int) Math.toDegrees(mOrientationAngles[0]) + "");
+            rotationY.setText((int) Math.toDegrees(mOrientationAngles[1]) + "");
+            rotationZ.setText((int) Math.toDegrees(mOrientationAngles[2]) + "");
         }
+
+    }
     public static boolean openApp(Context context, String packageName) {
         PackageManager manager = context.getPackageManager();
         try {
