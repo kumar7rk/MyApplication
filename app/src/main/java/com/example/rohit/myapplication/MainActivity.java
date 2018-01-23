@@ -1,5 +1,6 @@
 package com.example.rohit.myapplication;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
@@ -233,11 +234,12 @@ public class MainActivity extends Activity implements SensorEventListener {
             editor.putBoolean("switch", false);
 
         editor.putString("lastOpen", currentDateTimeString);
-        editor.commit();
+        editor.apply();
         isAppRunning = false;
         mSensorManager.unregisterListener(this);
     }
 
+    @SuppressLint({"DefaultLocale", "SetTextI18n"})
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor==mPhotometer) {
