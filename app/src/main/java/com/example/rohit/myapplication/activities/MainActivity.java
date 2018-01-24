@@ -85,7 +85,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
         mSensorManager.registerListener(this, mMagnetometer, SensorManager.SENSOR_DELAY_NORMAL);
 
-        isConnected(thisActivity);
+        isPowerConnected(thisActivity);
 
         boolean switchOnOff = preferences.getBoolean("switch", true);
         if (switchOnOff){
@@ -163,7 +163,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         return false;
     }
 
-    public static boolean isConnected(Context context) {
+    public static boolean isPowerConnected(Context context) {
         Intent intent = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
         if (plugged == BatteryManager.BATTERY_PLUGGED_AC)
