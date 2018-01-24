@@ -1,4 +1,4 @@
-package com.example.rohit.myapplication;
+package com.example.rohit.myapplication.activities;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -26,6 +26,9 @@ import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.example.rohit.myapplication.R;
+import com.example.rohit.myapplication.services.BackgroundService;
 
 import java.text.DateFormat;
 import java.util.Date;
@@ -122,17 +125,6 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         max = preferences.getInt("highest",0);
         maxLux.setText(max + "");
-
-        /*Intent i4=new Intent(Intent.ACTION_MAIN);
-        PackageManager manager = getPackageManager();
-        i4 = manager.getLaunchIntentForPackage("jp.ne.hardyinfinity.bluelightfilter.free");
-        i4.addCategory(Intent.CATEGORY_LAUNCHER);
-        startActivity(i4);*/
-
-        /*Intent intent = new Intent();
-        intent.setComponent(new ComponentName("jp.ne.hardyinfinity.bluelightfilter.free.service", "jp.ne.hardyinfinity.bluelightfilter.free.service.FilterService"));
-        ComponentName c = getApplicationContext().startService(intent);
-        startService(intent);*/
     }
 
     private void startService() {
